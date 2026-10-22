@@ -30,7 +30,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 setAnisotropy(Math.min(renderer.capabilities.getMaxAnisotropy(), quality.high ? 8 : 2));
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 900);
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.3, 600);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 2.5; controls.maxDistance = 42;
@@ -48,8 +48,7 @@ const fish = createFish(scene, pond, eco, quality);
 const plants = createPlants(scene, shared, pond);
 
 // ---- planar reflection (Reflector used only as an off-screen pass; never added to the scene) ----
-const REFL_SCALE = quality.high ? 0.32 : 0.2;
-let reflFrame = 0;
+const REFL_SCALE = quality.high ? 0.4 : 0.25;
 const reflector = new Reflector(new THREE.PlaneGeometry(1, 1), { textureWidth: 512, textureHeight: 512, clipBias: 0.003, multisample: 0 });
 reflector.rotation.x = -Math.PI / 2; reflector.updateMatrixWorld(true);
 const reflInv = reflector.matrixWorld.clone().invert();
@@ -208,7 +207,7 @@ addEventListener('resize', resize); resize();
 
 // ---- main loop ----
 const clock = new THREE.Clock(); let ecoAcc = 0, uiAcc = 0;
-let lodAcc = 0, shadowAcc = 0;
+let lodQ = null;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05); const t = (shared.time.value += dt);
   if (state.autoDay) {
@@ -229,20 +228,16 @@ function frame() {
   food.update(dt, t); fish.update(dt, food, t); plants.update(t);
   ecoAcc += dt; if (ecoAcc > 0.25) { eco.update(ecoAcc, { koi: fish.count('koi'), gold: fish.count('gold'), plantScore: plants.score(), floating: food.floating() }); applyWater(); ecoAcc = 0; }
   uiAcc += dt; if (uiAcc > 0.4) { ui.refresh(); uiAcc = 0; }
-  lodAcc += dt; if (lodAcc > 0.35) { scenery.updateGrassLOD?.(camera, quality.high); lodAcc = 0; }
-  // shadow map: refresh less often on 精美, off on 流畅
-  shadowAcc += dt;
-  if (quality.high) {
-    env.sun.castShadow = shadowAcc > 0.05; if (shadowAcc > 0.05) shadowAcc = 0;
-  } else env.sun.castShadow = false;
+  // grass count depends only on the quality tier (no per-camera popping); shadows stay on every frame on 精美
+  if (lodQ !== quality.high) { scenery.updateGrassLOD?.(camera, quality.high); lodQ = quality.high; }
+  if (env.sun.castShadow !== quality.high) env.sun.castShadow = quality.high;
   if (fly) {
     fly.t += dt / fly.dur; const k = fly.t >= 1 ? 1 : 1 - Math.pow(1 - fly.t, 3);
     camera.position.lerpVectors(fly.p0, fly.p1, k); controls.target.lerpVectors(fly.t0, fly.t1, k); if (fly.t >= 1) fly = null;
   }
   controls.update(dt); env.follow(camera);
-  reflFrame++;
-  const reflEvery = quality.high ? 2 : 3;
-  if (reflActive() && (reflFrame % reflEvery === 0)) {
+  // mirror pass every frame: skipping frames made the reflection lag/flicker against the moving camera
+  if (reflActive()) {
     camera.updateMatrixWorld(); pond.water.visible = false; ghost.visible && (ghost.userData.v = true, ghost.visible = false);
     reflector.onBeforeRender(renderer, scene, camera);
     pond.WU.uTexMat.value.multiplyMatrices(reflector.material.uniforms.textureMatrix.value, reflInv);

@@ -18,7 +18,7 @@ export function createEnv(scene, renderer, shared, quality) {
   sun.shadow.mapSize.set(quality.high ? 1024 : 512, quality.high ? 1024 : 512);
   if (!quality.high) { sun.castShadow = false; }
   Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 80 });
-  sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
+  sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.045;
   scene.add(sun); scene.add(sun.target);
   scene.fog = new THREE.Fog(0xffffff, 38, 120);
 

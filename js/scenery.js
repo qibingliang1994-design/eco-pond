@@ -91,7 +91,7 @@ function broadleafCards(seed, centre, radii, count) {
   return cardGeo(cards);
 }
 function foliageMaterial(map, transl = 0.45) {
-  const m = new THREE.MeshStandardMaterial({ map, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.72, metalness: 0 });
+  const m = new THREE.MeshStandardMaterial({ map, alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.72, metalness: 0 });
   m.onBeforeCompile = sh => {
     addTranslucency(sh, transl);
     // keep the radial "canopy" normals on both faces (no back-face flip) for soft, volumetric shading
@@ -190,15 +190,8 @@ export function createScenery(scene, shared, quality, pond) {
   for (let i = 0; i < 6; i++) { const [x, z] = edgePoint(2.0 + i * 0.07, 1.22 + i * 0.18); m4.compose(v.set(x, terrainHeight(x, z) - 0.03, z), q.setFromEuler(e.set(0, i, 0)), s.set(0.42, 0.12, 0.36)); step.setMatrixAt(i, m4); }
   step.receiveShadow = true; step.castShadow = true; scene.add(step);
   function updateGrassLOD(cam, high) {
-    if (!grassPos.length) return;
-    // keep denser ring near camera / pond; drop far instances by lowering count
-    const cx = cam.position.x, cz = cam.position.z;
-    // grass already sorted near-pond-first; scale count by quality + distance
-    const base = high ? grassPos.length : Math.floor(grassPos.length * 0.42);
-    // if camera is high above, we see more of the field — keep more; if close, can cut far
-    const elev = Math.max(0, cam.position.y);
-    const mul = elev > 14 ? 1.0 : elev > 7 ? 0.85 : 0.7;
-    grass.count = Math.max(400, Math.floor(base * mul));
+    // fixed per quality tier: changing instance count with camera height caused visible popping
+    grass.count = high ? grassPos.length : Math.floor(grassPos.length * 0.42);
   }
   return { grass, grassN: spotsG.length, grassPos, updateGrassLOD, lampLight, lampPos: lampLight.position, glowMat };
 }
